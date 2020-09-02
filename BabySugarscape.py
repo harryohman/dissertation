@@ -435,15 +435,23 @@ class Individual:
         if best_coalition.number != self.coalition.number: 
             best_coalition.vote_on_membership(self, individuals)
 
-
+# Decide what rule the coalition uses for voting on memebership
 majority = (SETTINGS['Voting Mechanism'] == 'Majority')
 
 class ProperCoalition: 
     def __init__(self, members):
         self.members = members 
-        self.number = random.randint(1,1000000000000000) 
+        self.number = random.randint(1,1000000000000000) # so that we can refer to different coalitions good for debugging purposes
     
     def vote_on_membership(self, individual, individuals, majority=majority): 
+        '''This takes in an individual, and determines whether that individual can join the coalition or not
+
+        inputs: 
+            individual - the individual who wants to join
+            individuals - a dicitionary with the individuals in the simulation
+            majority - boolean, if true then a majority priciple is applied to aspiring memebers 
+        
+        '''
         length = len(self.members)
         potential_coalition_members = self.members.copy()
         potential_coalition_members.append(individual)
@@ -478,6 +486,7 @@ class Lattice:
     '''The lattice where upon everything takes pace
     Arguments: N - The size of the lattice (we only allow)
     '''
+
     def __init__(self, SETTINGS):
         N = SETTINGS['Size of lattice']
         max_sugar_level = SETTINGS['Maximum sugar']
@@ -506,12 +515,20 @@ if SETTINGS['Returns to Scale'] == 'Low':
     def attractiveness_function(attacker_strength, attacked_coalition_strength, attacked_coalition_sugar, size_of_coal, bias_in_favour_of_attacker): 
         return ((attacker_strength+bias_in_favour_of_attacker)/(attacker_strength + attacked_coalition_strength + bias_in_favour_of_attacker))*(attacked_coalition_sugar)
             
-def combat(attacker, attacked, individuals, cost_of_combat, lattice, bias_in_favour_of_attacker, combat_log, round_numbe, SETTINGS): 
+def combat(attacker, attacked, individuals, cost_of_combat, lattice, bias_in_favour_of_attacker, combat_log, round_number, SETTINGS): 
     '''This function excecutes a combat between a attacker and attacked. If the attacker wins the combat he takes the attcked individauls sugar
         and the attacked agent moves to the closes uninhabited location on the lattice
 
-        inputs: attacker - the attacking individual, attacker - the individual being attacked, individuals - a dictionary of the individuals involved in the simulation
+        inputs: attacker - the attacking individual, 
+        attacker - the individual being attacked, 
+        individuals - a dictionary of the individuals involved in the simulation
         cost_of_combat - the cost of combat (to the attacker)
+        lattice - the lattice in question
+        bias_in_favour_of_the_attacker - the bias in favour of the attacker
+        combat_log - a dictionary that saves the outcomes from the combats in each round, good for debugging
+        round_number - the round number
+        SETTINGS - a dicitionary with all the global settings
+
     '''
     
     p = (attacker.strength+bias_in_favour_of_attacker)/(attacked.strength + attacker.strength+bias_in_favour_of_attacker) # The probability of an individual winning a combat is proportional to that individuals strength
@@ -540,6 +557,22 @@ def combat(attacker, attacked, individuals, cost_of_combat, lattice, bias_in_fav
         combat_log["round " + str(round_number)].append(log_entry) 
 
 def combat_coalition(attacker, attacked, coalition, cost_of_combat, individuals, bias_in_favour_of_attacker, combat_log, round_number, SETTINGS): 
+    '''This function excecutes a combat between a attacker and attacked - this version with coalitions. If the attacker wins the combat he takes the attcked individauls sugar
+        and the attacked agent moves to the closes uninhabited location on the lattice
+
+        inputs: attacker - the attacking individual, 
+        coalition - the coalition of the memeber in quesiton
+        attacker - the individual being attacked, 
+        individuals - a dictionary of the individuals involved in the simulation
+        cost_of_combat - the cost of combat (to the attacker)
+        lattice - the lattice in question
+        bias_in_favour_of_the_attacker - the bias in favour of the attacker
+        combat_log - a dictionary that saves the outcomes from the combats in each round, good for debugging
+        round_number - the round number
+        SETTINGS - a dicitionary with all the global settings
+
+    '''
+
     individuals_in_nbhd = attacked.find_nbhd(individuals)
     coalition_members_in_nbhd = list(filter(lambda x: x in coalition.members, individuals_in_nbhd))
     size_of_coal = len(coalition_members_in_nbhd)
@@ -585,6 +618,13 @@ def combat_coalition(attacker, attacked, coalition, cost_of_combat, individuals,
         combat_log["round " + str(round_number)].append(log_entry) 
         
 def find_closest_unoccupied_loc(individual, individuals, lattice):
+    '''Finds the closest unoccupied location to a given individual
+
+        inputs: 
+            individual - the individuals whose closest unoccupied location is to be found
+            individuals - a dictionary of all the individuals inthe simulation
+            lattice - the lattice in question
+    '''
     sight = individual.sight
     size_of_lattice = lattice.size
     x0, y0 = individual.location
@@ -632,6 +672,14 @@ def random_initial_locations(number_of_players, size_of_lattice):
     return choice_locations
 
 def initiate_simulation(SETTINGS):
+    '''Takes in the SETTINGS dicitionary and outputs a list of individuals and a lattice with the specified charateristics
+        
+        inputs: 
+            SETTINGS - the dicitionary with the global settings
+        
+        outputs: 
+            a tuple with the a dicitionary a indiviuals and a lattice
+    '''
     number_of_individuals = SETTINGS['Number of individuals']
     size_of_lattice = SETTINGS['Size of lattice']
     starting_sugar_level = SETTINGS['Starting sugar level']
@@ -673,19 +721,18 @@ def initiate_simulation(SETTINGS):
     lattice = Lattice(SETTINGS)
     return individuals, lattice
 
-def play_round(individuals, lattice):
-    '''Plays one round of the simlutaion
+def play_round_combat(individuals, dead_individuals, combat_log, round_number, lattice, SETTINGS): 
+    '''Plays one round of the simlutaion with combats and coalition
     Arguments:  individuals - a dictionary of individuals
                 lattice - the lattice
+                individuals - a dicitionary of all individuals
+                dead_individuals - a dicitionary of all individuals that have died (good to keep track of for debugging purposes)
+                combat_log - a dictionary with information on all the combats, good for debugginf purposes
+                round_number - the round number (needed to store data properly)
+                lattice - the lattice of the simulation
+                SETTINGS - a dicitonary with all the global settings
     '''
-    for k,v in individuals.items():
-        v.move(individuals, lattice)
-        v.harvest(lattice)
-        v.eat()
 
-    lattice.regrow_sugar() 
-
-def play_round_combat(individuals, dead_individuals, combat_log, round_number, lattice, SETTINGS): 
     # Start with shuffling the order in which the individuals get to make their moves. So as to not advantage any particular individaul. 
     l = list(individuals.items())
     random.shuffle(l)
@@ -707,30 +754,9 @@ def play_round_combat(individuals, dead_individuals, combat_log, round_number, l
 
     lattice.regrow_sugar() 
 
-def create_random_coalitions(individuals, size, number_of_coalitions):
-    l = list(individuals.items())
-    random.shuffle(l)
-    individuals = dict(l)
-    coalitions = []
-    if size*number_of_coalitions <= len(individuals):
-        counter_1 = 0
-        counter_2 = 0
-        for i in range(number_of_coalitions):
-            coalition = ProperCoalition([])
-            coalitions.append(coalition)
-        for k,v in individuals.items():
-            coalitions[counter_1].members.append(v)
-            counter_2 += 1
-            if counter_2 % size == size - 1: 
-                counter_1 += 1 
-            v.in_proper_coalition = True
-            v.coalition = coalition
-            if counter_2 == (size*number_of_coalitions - 1):
-                break 
-        return coalitions 
-    else: 
-        print('Cannot create a coalition that is larger than the number of individuals')
-        return coalitions
+### PLOTS AND DATA ### 
+'''Below follows some funciton with the purpose to store data and plot the outputs
+'''
 
 # plotting the location of all the individauls
 def plot_locations(individuals, round_number, combat_log, show_combat_log=True):
@@ -768,27 +794,6 @@ def plot_locations(individuals, round_number, combat_log, show_combat_log=True):
         plt.clf()
     else: 
         print('Could not plot the location of the alive individuals since all individuals are dead.')
-
-def plot_coalitions(coalitions, markers):
-    marker_index = 0
-    marker_length = len(markers)
-    for c in coalitions:
-        list_of_coordinates = []
-        for m in c.members:
-            if m.alive:  
-                loc = m.location
-                list_of_coordinates.append(loc)
-        x, y = zip(*list_of_coordinates)
-        ind = marker_index % marker_length 
-        marker_symbol = markers[ind]
-        plt.scatter(x,y, marker=marker_symbol)
-        marker_index += 1
-    if export_plots: 
-        now = datetime.now()
-        date_time = now.strftime("%m_%d_%Y_%H_%M_%S")
-        plt.savefig(date_time + 'coalition_plot.pgf')
-    plt.show()
-    plt.clf()
 
 def plot_sugar(lattice): 
     ''' Takes in the lattice and plots the sugar levels at all points of the lattice using an inverse heatmap
@@ -1198,14 +1203,4 @@ plot_dominance_and_average_strength(spatial_dominance_of_greatest_coalition, mea
 plot_time_series_dominance(spatial_dominance_of_greatest_coalition)
 plot_coalitions_iii(coalitions_part_3,  coalitions_part_4)
 plot_coalitions_iiii(coalitions_part_1,  coalitions_part_2, coalitions_part_3,  coalitions_part_4) 
-#coalitions = print_all_coalitions(individuals)
-#plot_time_series_average_resource_level(mean_sugar_doves, mean_sugar_hawks)
-#plot_time_series_conflicts(number_of_conflicts)
-#plot_time_series_average_strength_coalitions(mean_strength) 
-#plot_sugar(lattice)
-#plot_locations(individuals, round_number, combat_log)
-#plot_coalitions(coalitions, markers)
-
-# Form tribe 
-# Every round each agent gets to join a defensive coalition with other agents
 
